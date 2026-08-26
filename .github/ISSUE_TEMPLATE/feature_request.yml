@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest something rung should do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What you are trying to do, and where rung gets in the way. Describing
+        the situation is more useful than describing a solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: Optional. If you have an API or a flag in mind, sketch it.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: Optional. Workarounds, or other tools that do this well.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: >
+            This keeps the root package free of database drivers (a driver
+            belongs to its dialect subpackage)
+        - label: I would be willing to open a pull request for this
