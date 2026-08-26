@@ -32,6 +32,7 @@
 //	import (
 //	    _ "github.com/gruberchris/rung/dialect/mysql"    // mysql, mariadb
 //	    _ "github.com/gruberchris/rung/dialect/postgres" // postgres, postgresql, pgx
+//	    _ "github.com/gruberchris/rung/dialect/sqlite"   // sqlite, sqlite3
 //	)
 //
 //	d, err := rung.For(cfg.Driver)

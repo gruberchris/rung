@@ -11,6 +11,11 @@
 // version: it runs the same file set through the same dialect, and the point of
 // the third target is to notice the day that stops being true.
 //
+// SQLite is the exception and needs no DSN: it has no server to point at, so
+// it runs against a file in a temporary directory and is never skipped. That
+// makes `go test ./...` on a workstation with no databases exercise the Up,
+// Down, Statuses and reset paths against a real engine rather than none.
+//
 // These tests drop every table in the database they connect to. Point them at a
 // throwaway one.
 package rung_test
@@ -20,6 +25,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -29,18 +35,31 @@ import (
 
 	_ "github.com/gruberchris/rung/dialect/mysql"
 	_ "github.com/gruberchris/rung/dialect/postgres"
+	_ "github.com/gruberchris/rung/dialect/sqlite"
 )
 
 type engine struct {
 	name   string
 	env    string
 	driver string
+	// local supplies a DSN when env is unset, for an engine that needs no
+	// server. Nil means skip, which is the right answer for anything with a
+	// service container behind it.
+	local func(t *testing.T) string
 }
 
 var engines = []engine{
 	{name: "postgres", env: "RUNG_TEST_POSTGRES_DSN", driver: "postgres"},
 	{name: "mysql", env: "RUNG_TEST_MYSQL_DSN", driver: "mysql"},
 	{name: "mariadb", env: "RUNG_TEST_MARIADB_DSN", driver: "mariadb"},
+	{name: "sqlite", env: "RUNG_TEST_SQLITE_DSN", driver: "sqlite", local: tempDatabase},
+}
+
+// tempDatabase gives SQLite a throwaway file, so it needs no service container
+// and no environment variable to be exercised.
+func tempDatabase(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(t.TempDir(), "rung.db")
 }
 
 // migrations carries an equivalent schema for each dialect. The two file sets
@@ -66,6 +85,16 @@ var migrations = fstest.MapFS{
 	"mysql/000003_sprockets.up.sql": file(
 		`CREATE TABLE IF NOT EXISTS sprockets (id INT PRIMARY KEY)`),
 	"mysql/000003_sprockets.down.sql": file(`DROP TABLE IF EXISTS sprockets`),
+
+	"sqlite/000001_widgets.up.sql": file(
+		`CREATE TABLE IF NOT EXISTS widgets (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`),
+	"sqlite/000001_widgets.down.sql": file(`DROP TABLE IF EXISTS widgets`),
+	"sqlite/000002_gadgets.up.sql": file(
+		`CREATE TABLE IF NOT EXISTS gadgets (id INTEGER PRIMARY KEY, label TEXT NOT NULL)`),
+	"sqlite/000002_gadgets.down.sql": file(`DROP TABLE IF EXISTS gadgets`),
+	"sqlite/000003_sprockets.up.sql": file(
+		`CREATE TABLE IF NOT EXISTS sprockets (id INTEGER PRIMARY KEY)`),
+	"sqlite/000003_sprockets.down.sql": file(`DROP TABLE IF EXISTS sprockets`),
 }
 
 // broken carries a migration whose SQL cannot succeed.
@@ -74,6 +103,8 @@ var broken = fstest.MapFS{
 	"postgres/000001_broken.down.sql": file(`SELECT 1`),
 	"mysql/000001_broken.up.sql":      file(`CREATE TABLE definitely not valid sql`),
 	"mysql/000001_broken.down.sql":    file(`SELECT 1`),
+	"sqlite/000001_broken.up.sql":     file(`CREATE TABLE definitely not valid sql`),
+	"sqlite/000001_broken.down.sql":   file(`SELECT 1`),
 }
 
 func file(body string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(body)} }
@@ -83,7 +114,7 @@ func file(body string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(bod
 func (e engine) connect(t *testing.T) (rung.Dialect, *sql.DB) {
 	t.Helper()
 
-	dsn := envOrSkip(t, e.env)
+	dsn := e.dsn(t)
 
 	dialect, err := rung.For(e.driver)
 	if err != nil {
@@ -112,13 +143,20 @@ func (e engine) connect(t *testing.T) (rung.Dialect, *sql.DB) {
 	return dialect, db
 }
 
-func envOrSkip(t *testing.T, name string) string {
+// dsn resolves an engine's DSN, skipping the engine when it needs a server
+// that has not been provided.
+//
+// The environment always wins, so SQLite can still be pointed at a particular
+// file when someone wants to inspect the result afterwards.
+func (e engine) dsn(t *testing.T) string {
 	t.Helper()
-	value := os.Getenv(name)
-	if value == "" {
-		t.Skipf("%s is not set; skipping", name)
+	if value := os.Getenv(e.env); value != "" {
+		return value
 	}
-	return value
+	if e.local == nil {
+		t.Skipf("%s is not set; skipping", e.env)
+	}
+	return e.local(t)
 }
 
 func eachEngine(t *testing.T, run func(t *testing.T, e engine)) {
