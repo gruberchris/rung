@@ -1,7 +1,11 @@
 # Build output
+#
+# The CLI binary is anchored to the repository root on purpose: a bare `rung`
+# would also match the cmd/rung *directory*, silently excluding the command's
+# source from every commit.
 /dist/
 /bin/
-rung
+/rung
 
 # Test and coverage output
 coverage.out
