@@ -137,6 +137,31 @@ jobs:
           path: coverage.out
           retention-days: 7
 
+  minimum-go:
+    name: Build at the declared floor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The `go` directive in go.mod is a floor for every consumer, not a note
+      # about the author's machine: a module requiring a newer Go than its
+      # consumers have will not build for them at all. This job compiles
+      # against exactly the declared version, so raising it is a deliberate act
+      # rather than a side effect of `go mod tidy` on a new toolchain.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Report the toolchain in use
+        run: go version
+
+      - name: Build and unit-test
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+
   vulncheck:
     name: Vulnerability scan
     runs-on: ubuntu-latest

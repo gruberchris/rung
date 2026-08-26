@@ -17,6 +17,7 @@ package main
 
 import (
 	"os"
+	"runtime/debug"
 
 	"github.com/gruberchris/rung/clicmd"
 
@@ -30,6 +31,29 @@ var (
 	commit  = "none"
 	date    = "unknown"
 )
+
+// init recovers the version for builds the release pipeline did not produce.
+//
+// GoReleaser supplies the values above through -ldflags. A `go install
+// module@version` build gets no ldflags, but the toolchain records the module
+// version in the binary, so read it back rather than reporting "dev" for a
+// binary that plainly has a version.
+func init() {
+	if version != "dev" {
+		return // -ldflags supplied a real version.
+	}
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+	// "(devel)" is what a build from a working tree reports, which "dev"
+	// already says more clearly.
+	if info.Main.Version == "" || info.Main.Version == "(devel)" {
+		return
+	}
+	version = info.Main.Version
+}
 
 func main() {
 	cmd := clicmd.New(clicmd.Options{
