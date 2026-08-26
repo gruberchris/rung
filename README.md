@@ -19,38 +19,42 @@ if err := m.Up(ctx, db, 0); err != nil {
 
 ---
 
-## Why another one
+## Design
 
-`rung` is opinionated about one thing: **migrations are a deploy step, not
-something a server does to itself.**
+`rung` treats schema migrations as a step in the deployment process rather than
+as a runtime responsibility of the service.
 
-The account that applies them holds DDL privileges. The account the running
-service connects as does not. Keeping the two apart means a bug in a request
-handler cannot alter your schema, and a rolling restart or a crash loop cannot
-change the database underneath a running instance. A server using `rung` reports
-that it is behind; it does not fix it.
+Migrations are applied by a database account holding DDL privileges. The running
+service connects using a separate account that does not hold them. Separating
+the two means a defect in a request handler cannot alter the schema, and a
+rolling restart or a crash loop cannot modify the database beneath a running
+instance. A service using `rung` reports that its schema is out of date; it does
+not bring it up to date itself.
 
-Everything else follows from that: a CLI built for a deploy pipeline, a
-confirmation prompt that **refuses rather than guesses** when there is no
-terminal, and a status format meant to be read in a CI log.
+The remainder of the design follows from that decision: a command-line interface
+built for deployment pipelines, a confirmation prompt that fails rather than
+assumes an answer when no terminal is attached, and a status format intended to
+be read in a CI log.
 
 ## Features
 
 - **Three databases, one file set per dialect.** PostgreSQL, MySQL and MariaDB,
-  behind a `Dialect` seam so nothing else in your code branches on which is in
-  use.
-- **No driver you did not ask for.** The root package imports only the standard
-  library. Drivers come with the dialect subpackages, so a PostgreSQL-only
-  service never compiles the MySQL driver into its binary.
-- **Embeddable.** Migrations are read from an `io/fs.FS`, so `//go:embed` puts
-  them in the binary that expects them. No directory to copy, nothing that can
-  drift.
-- **Transactional.** Each migration and its ledger row commit together, so a
-  file that fails halfway leaves no half-built schema and no ledger row claiming
-  success.
-- **Safe in CI.** No terminal and no `--force` is an error, not a silent "no".
-- **A CLI you can drop in.** `clicmd` gives you `up`, `down`, `status` and
-  `init` in about twenty lines.
+  behind a `Dialect` interface that confines every database-specific difference
+  to a single place.
+- **Isolated driver dependencies.** The root package imports only the standard
+  library. Each driver is confined to its dialect subpackage, so a
+  PostgreSQL-only service never compiles the MySQL driver into its binary.
+- **Embeddable migration files.** Migrations are read from an `io/fs.FS`, so
+  `//go:embed` places them in the binary that expects them, leaving no directory
+  to distribute and nothing that can drift out of step.
+- **Transactional application.** Each migration commits together with its ledger
+  row, so a file that fails partway through leaves neither a partially applied
+  schema nor a ledger entry recording success.
+- **Predictable without a terminal.** A command that requires confirmation fails
+  when given neither `--force` nor an attached terminal, rather than assuming an
+  answer.
+- **A ready-made command-line interface.** `clicmd` provides `up`, `down`,
+  `status` and `init` in roughly twenty lines of wiring.
 
 ## Install
 
@@ -85,8 +89,9 @@ migrations/
 ```
 
 A version with only one half is skipped: applying an `up` with no matching
-`down` would create a state the tool cannot reverse. Anything that does not
-parse as a migration name is ignored, so a `README.md` alongside them is fine.
+`down` would create a state the tool cannot reverse. Any file that does not
+parse as a migration name is ignored, so a `README.md` alongside them is
+harmless.
 
 Applied versions are recorded in a `_migrations` table:
 
@@ -151,7 +156,8 @@ The driver and DSN are read from `--driver` / `--database-uri`, then
 
 ### Report drift from your server
 
-The server does not migrate. It says so when it is behind:
+The service does not apply migrations. It reports when its schema is out of
+date:
 
 ```go
 pending, err := m.Pending(ctx, db)
@@ -228,7 +234,7 @@ docker run --rm \
   up --force
 ```
 
-Two database roles, deliberately:
+The separation relies on two database roles:
 
 ```sql
 -- Applies migrations. Never used by the service.
@@ -258,9 +264,9 @@ Implement `rung.Dialect` and register it:
 func init() { rung.Register(Dialect{}, "sqlite", "sqlite3") }
 ```
 
-Six methods: `Name`, `MigrationsDir`, `OpenForMigrations`, `Rebind`,
-`LedgerDDL`, `LedgerExistsQuery`. Implement the optional `reset.Resetter` as
-well if you want `init` to work.
+The interface has six methods: `Name`, `MigrationsDir`, `OpenForMigrations`,
+`Rebind`, `LedgerDDL` and `LedgerExistsQuery`. Implement the optional
+`reset.Resetter` as well to support the `init` command.
 
 ## A note on MySQL and DDL
 
