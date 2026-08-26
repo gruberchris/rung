@@ -23,6 +23,7 @@ import (
 
 	_ "github.com/gruberchris/rung/dialect/mysql"    // registers "mysql" and "mariadb"
 	_ "github.com/gruberchris/rung/dialect/postgres" // registers "postgres", "postgresql" and "pgx"
+	_ "github.com/gruberchris/rung/dialect/sqlite"   // registers "sqlite" and "sqlite3"
 )
 
 // Stamped at link time by the release build; see .goreleaser.yaml.

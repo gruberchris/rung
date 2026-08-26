@@ -4,7 +4,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/gruberchris/rung.svg)](https://pkg.go.dev/github.com/gruberchris/rung)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Versioned SQL migrations for Go services, across PostgreSQL, MySQL and MariaDB.
+Versioned SQL migrations for Go services, across PostgreSQL, MySQL, MariaDB and SQLite.
 
 Migrations are applied and rolled back one version at a time. Each applied
 version is recorded in a ledger table inside the database itself, so the schema
@@ -39,9 +39,9 @@ be read in a CI log.
 
 ## Features
 
-- **Three databases, one file set per dialect.** PostgreSQL, MySQL and MariaDB,
-  behind a `Dialect` interface that confines every database-specific difference
-  to a single place.
+- **Four databases, one file set per dialect.** PostgreSQL, MySQL, MariaDB and
+  SQLite, behind a `Dialect` interface that confines every database-specific
+  difference to a single place.
 - **Isolated driver dependencies.** The root package imports only the standard
   library. Each driver is confined to its dialect subpackage, so a
   PostgreSQL-only service never compiles the MySQL driver into its binary.
@@ -84,7 +84,10 @@ migrations/
 ├── postgres/
 │   ├── 000001_initial_schema.up.sql
 │   └── 000001_initial_schema.down.sql
-└── mysql/                      # MariaDB runs this set too
+├── mysql/                      # MariaDB runs this set too
+│   ├── 000001_initial_schema.up.sql
+│   └── 000001_initial_schema.down.sql
+└── sqlite/
     ├── 000001_initial_schema.up.sql
     └── 000001_initial_schema.down.sql
 ```
@@ -134,6 +137,7 @@ import (
 
     _ "github.com/gruberchris/rung/dialect/mysql"    // mysql, mariadb
     _ "github.com/gruberchris/rung/dialect/postgres" // postgres, postgresql, pgx
+    _ "github.com/gruberchris/rung/dialect/sqlite"   // sqlite, sqlite3
 
     "github.com/example/service/migrations"
 )
@@ -253,9 +257,16 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO example_a
 | PostgreSQL 12+ | `postgres`, `postgresql`, `pgx` | `postgres/` | `jackc/pgx/v5` |
 | MySQL 8.0+ | `mysql` | `mysql/` | `go-sql-driver/mysql` |
 | MariaDB 10.5+ | `mariadb` | `mysql/` | `go-sql-driver/mysql` |
+| SQLite 3 | `sqlite`, `sqlite3` | `sqlite/` | `modernc.org/sqlite` |
 
 MariaDB is served by the MySQL dialect — same wire protocol, same SQL — but it
 is a fork rather than a version, so CI verifies it separately.
+
+SQLite's driver is a pure-Go translation rather than a cgo binding, so it needs
+no C toolchain and does not break `CGO_ENABLED=0` builds or cross-compilation.
+Its DSN is a file path, `:memory:`, or a `file:` URI, and the pool is capped at
+one connection because SQLite takes a single writer — a pool turns what
+`database/sql` would have queued into `SQLITE_BUSY`.
 
 ### Adding a dialect
 

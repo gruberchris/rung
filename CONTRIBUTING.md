@@ -77,7 +77,9 @@ If you fix a bug, the comment should say what broke.
 2. Implement `reset.Resetter` too if `init` should work for it.
 3. Add unit tests for the DSN handling and the ledger statements.
 4. Add the engine to `engines` in `integration_test.go` and to the service
-   containers in `.github/workflows/ci.yml`.
+   containers in `.github/workflows/ci.yml`. A dialect that needs no server —
+   SQLite is the only one so far — gives its engine a `local` function instead
+   of a service, and then runs everywhere rather than being skipped.
 
 The root package must keep importing only the standard library. A driver
 belongs to its dialect subpackage so that nobody pays for a database they do not

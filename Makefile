@@ -36,7 +36,7 @@ lint: ## Run golangci-lint
 	golangci-lint run
 
 .PHONY: test
-test: ## Run the unit tests (integration tests skip without databases)
+test: ## Run the tests (server engines skip without databases; SQLite always runs)
 	$(GO) test -race $(PKG)
 
 .PHONY: test-integration

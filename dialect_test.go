@@ -26,11 +26,15 @@ func TestRegisterAndFor(t *testing.T) {
 func TestForRejectsAnUnregisteredDriver(t *testing.T) {
 	Register(testDialect{dir: "listed"}, "listed-driver")
 
-	_, err := For("sqlite")
+	// A name no dialect will ever register. "sqlite" used to stand here and
+	// stopped being unregistered the day the SQLite dialect landed -- the
+	// integration tests import it, and both files compile into one test
+	// binary, so its init runs before this.
+	_, err := For("no-such-driver")
 	if err == nil {
 		t.Fatal("For() error = nil, want an error")
 	}
-	if !strings.Contains(err.Error(), "sqlite") {
+	if !strings.Contains(err.Error(), "no-such-driver") {
 		t.Errorf("error = %q, want it to name the driver asked for", err)
 	}
 	// The message has to say what *is* available, or the reader has no next
