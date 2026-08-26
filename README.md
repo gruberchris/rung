@@ -2,12 +2,13 @@
 
 [![CI](https://github.com/gruberchris/rung/actions/workflows/ci.yml/badge.svg)](https://github.com/gruberchris/rung/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/gruberchris/rung.svg)](https://pkg.go.dev/github.com/gruberchris/rung)
-[![Go Report Card](https://goreportcard.com/badge/github.com/gruberchris/rung)](https://goreportcard.com/report/github.com/gruberchris/rung)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Versioned SQL migrations for Go services, across PostgreSQL, MySQL and MariaDB.
 
-Migrations go up and down a ladder one rung at a time.
+Migrations are applied and rolled back one version at a time. Each applied
+version is recorded in a ledger table inside the database itself, so the schema
+carries its own history.
 
 ```go
 m := rung.New(dialect, migrations.FS(), rung.WithReporter(render.NewConsole(nil)))
