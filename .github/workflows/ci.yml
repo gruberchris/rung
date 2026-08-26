@@ -114,8 +114,11 @@ jobs:
       - name: Build
         run: go build ./...
 
+      # -coverpkg attributes coverage across package boundaries. Without it the
+      # reset package reports 0%, because the tests that exercise it live in
+      # the root package's external test package.
       - name: Test
-        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+        run: go test -race -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
 
       - name: Coverage summary
         run: |

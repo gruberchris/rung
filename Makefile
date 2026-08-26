@@ -41,7 +41,7 @@ test: ## Run the unit tests (integration tests skip without databases)
 
 .PHONY: test-integration
 test-integration: ## Run every test, including the ones needing databases
-	$(GO) test -race -covermode=atomic -coverprofile=$(COVER) $(PKG)
+	$(GO) test -race -covermode=atomic -coverpkg=$(PKG) -coverprofile=$(COVER) $(PKG)
 	$(GO) tool cover -func=$(COVER) | tail -n 1
 
 .PHONY: cover
