@@ -1,0 +1,21 @@
+# Build output
+/dist/
+/bin/
+rung
+
+# Test and coverage output
+coverage.out
+coverage.txt
+*.test
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
+
+# Local environment
+.env
+.env.local
