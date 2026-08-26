@@ -1,0 +1,93 @@
+# GoReleaser builds and publishes the standalone rung CLI.
+#
+# The library needs no artifacts -- `go get` resolves it from the tag -- so the
+# only thing built here is cmd/rung, for people who want the tool without
+# embedding it in a service of their own.
+version: 2
+
+project_name: rung
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod verify
+
+builds:
+  - id: rung
+    main: ./cmd/rung
+    binary: rung
+    env:
+      # No cgo, so the binaries run on any distribution regardless of its libc.
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: rung
+    ids:
+      - rung
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Other changes
+      order: 999
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - Merge pull request
+      - Merge branch
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    ## Install
+
+    ```sh
+    go install github.com/gruberchris/rung/cmd/rung@{{ .Tag }}
+    ```
+
+    Or use it as a library:
+
+    ```sh
+    go get github.com/gruberchris/rung@{{ .Tag }}
+    ```

@@ -1,0 +1,73 @@
+name: Bug report
+description: Something does not work the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. If this is a security issue, please use a
+        [security advisory](https://github.com/gruberchris/rung/security/advisories/new)
+        instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: >
+        The smallest set of steps that shows the problem. Migration file names
+        and the command you ran are usually enough.
+      placeholder: |
+        1. migrations/postgres/000003_example.up.sql contains …
+        2. Run `migrate up --force`
+        3. …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      multiple: true
+      options:
+        - PostgreSQL
+        - MySQL
+        - MariaDB
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: database-version
+    attributes:
+      label: Database version
+      placeholder: "PostgreSQL 16.2"
+
+  - type: input
+    id: rung-version
+    attributes:
+      label: rung version
+      description: The module version, or `rung --version`.
+      placeholder: v0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: go-version
+    attributes:
+      label: Go version
+      placeholder: go1.27.0
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: The command's output, if any. This is rendered as a code block.
+      render: shell

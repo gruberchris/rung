@@ -1,0 +1,68 @@
+name: Release
+
+# Releases are cut by pushing a semver tag, which is the version decision:
+#
+#   git tag -a v0.1.0 -m "v0.1.0"
+#   git push origin v0.1.0
+#
+# Nothing here invents a version number. A tag is a deliberate, reviewable act,
+# and it is also what `go get` resolves, so the module version and the release
+# are the same thing by construction.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # A tag that does not parse as semver produces a module version nothing
+      # can resolve, so it is rejected before anything is published.
+      - name: Check the tag is semver
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'; then
+            echo "Tag '$tag' is not a semver version such as v1.2.3 or v1.2.3-rc.1."
+            exit 1
+          fi
+
+      - name: Test
+        run: go test -race ./...
+
+  release:
+    name: Release
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # GoReleaser derives the version and the changelog from the tag and
+          # the commits behind it, so it needs the whole history.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

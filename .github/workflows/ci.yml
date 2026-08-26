@@ -1,0 +1,182 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref; a PR that is pushed to twice in a
+# minute does not need both results.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Verify go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    # Every supported engine runs on every push. MariaDB is exercised
+    # separately from MySQL because it is a fork rather than a version: it uses
+    # the same dialect and the same file set, and the point of the third target
+    # is to notice the day that stops being true.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: rung
+          POSTGRES_PASSWORD: rung
+          POSTGRES_DB: rung
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U rung"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: rung
+          MYSQL_DATABASE: rung
+          MYSQL_USER: rung
+          MYSQL_PASSWORD: rung
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -prung"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: rung
+          MARIADB_DATABASE: rung
+          MARIADB_USER: rung
+          MARIADB_PASSWORD: rung
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+
+    env:
+      RUNG_TEST_POSTGRES_DSN: postgres://rung:rung@127.0.0.1:5432/rung?sslmode=disable
+      RUNG_TEST_MYSQL_DSN: rung:rung@tcp(127.0.0.1:3306)/rung
+      RUNG_TEST_MARIADB_DSN: rung:rung@tcp(127.0.0.1:3307)/rung
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      # -coverpkg attributes coverage across package boundaries. Without it the
+      # reset package reports 0%, because the tests that exercise it live in
+      # the root package's external test package.
+      - name: Test
+        run: go test -race -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+
+      - name: Coverage summary
+        run: |
+          go tool cover -func=coverage.out | tee coverage.txt
+          {
+            echo '### Coverage'
+            echo
+            echo '```'
+            tail -n 1 coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 7
+
+  vulncheck:
+    name: Vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  release-dry-run:
+    name: Release build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Building the release artifacts on every PR means a broken
+      # cross-compilation or a bad .goreleaser.yaml is found here rather than
+      # at the moment a tag is pushed and the release is expected.
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-binaries
+          path: dist/*.tar.gz
+          retention-days: 7
