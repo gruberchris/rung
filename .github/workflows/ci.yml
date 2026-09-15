@@ -173,10 +173,18 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # govulncheck's own Go requirement moves independently of this module's
+      # floor, so the install may switch to a newer toolchain. The scan itself
+      # still runs on the floor toolchain: govulncheck reports standard-library
+      # vulnerabilities for the `go` it finds, and the floor is what releases
+      # are built with.
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        env:
+          GOTOOLCHAIN: auto
+
       - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+        run: govulncheck ./...
 
   release-dry-run:
     name: Release build
