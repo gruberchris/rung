@@ -4,11 +4,11 @@ go 1.26.10
 
 require (
 	github.com/fatih/color v1.19.0
-	github.com/go-sql-driver/mysql v1.10.1
+	github.com/go-sql-driver/mysql v1.10.2
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/term v0.48.0
-	modernc.org/sqlite v1.62.0
+	modernc.org/sqlite v1.63.0
 )
 
 require (
